@@ -56,14 +56,17 @@ export function ReservationStatusPage() {
   }, [locationState]);
 
   const { data: rooms = [] } = useQuery(['rooms'], getRooms); //F1-1: 회의실 목록 API호출(getRooms)후 rooms 변수에 저장
-  const { data: reservations = [] } = useQuery(['reservations', date], () => getReservations(date), {
-    enabled: !!date,
-  });
   //F1-2: 예약현황 타임라인 API호출(getReservations)
   //date(사용자 날짜)가 변경될 때마다 예약 현황을 다시 불러옴(enabled: !!date)
   //변경결과를 reservations 변수에 저장
-  const { data: myReservationList = [] } = useQuery(['myReservations'], getMyReservations);
+  const { data: reservations = [] } = useQuery(['reservations', date], () => getReservations(date), {
+    enabled: !!date,
+  });
 
+  //F5-1: 내 예약 목록 API 호출(getMyReservations) 후 myReservationList 배열에 저장
+  const { data: myReservationList = [] } = useQuery(['myReservations'], getMyReservations);
+  //F5-3: 예약취소기능 - useMutation을 사용하여 cancelReservation API 호출
+  //성공적으로 취소된 후에는 예약 목록이 최신 상태로 유지되도록 queryClient.invalidateQueries를 사용하여 관련 쿼리를 무효화
   const cancelMutation = useMutation((id: string) => cancelReservation(id), {
     onSuccess: () => {
       queryClient.invalidateQueries(['reservations']);
@@ -131,7 +134,7 @@ export function ReservationStatusPage() {
           <input
             type="date"
             value={date}
-            min={formatDate(new Date())}
+            min={formatDate(new Date())} //D4: 날짜 선택 input의 최소값을 오늘 날짜로 설정하여 과거 날짜 선택 방지
             onChange={e => setDate(e.target.value)}
             aria-label="날짜"
             css={css`
@@ -269,7 +272,7 @@ export function ReservationStatusPage() {
                     (res: { id: string; start: string; end: string; attendees: number; equipment: string[] }) => {
                       const left = (timeToMinutes(res.start) / TOTAL_MINUTES) * 100;
                       const width = ((timeToMinutes(res.end) - timeToMinutes(res.start)) / TOTAL_MINUTES) * 100;
-                      const isActive = activeReservation === res.id;
+                      const isActive = activeReservation === res.id; //D1-2: 현재 예약이 active인지 여부 (activeReservation 상태와 비교)
                       return (
                         <div
                           key={res.id}
@@ -283,7 +286,7 @@ export function ReservationStatusPage() {
                           <div
                             role="button"
                             aria-label={`${room.name} ${res.start}-${res.end} 예약 상세`}
-                            onClick={() => setActiveReservation(isActive ? null : res.id)}
+                            onClick={() => setActiveReservation(isActive ? null : res.id)} //D1-1: 타임라인 예약 블록 클릭 시 activeReservation 상태를 해당 예약 id로 설정(같은 블록 클릭 시 해제)
                             css={css`
                               width: 100%;
                               height: 100%;
@@ -297,6 +300,7 @@ export function ReservationStatusPage() {
                               }
                             `}
                           />
+                          {/**D1-3: activeReservation과 res.id가 일치하는 경우(isActive) 해당 예약의 상세 정보(시간/인원/장비)를 툴팁으로 표시 */}
                           {isActive && (
                             <div
                               role="tooltip"
@@ -386,14 +390,16 @@ export function ReservationStatusPage() {
           <Text typography="t5" fontWeight="bold" color={colors.grey900}>
             내 예약
           </Text>
+          {/**F5-2: 내 예약 목록 표시 */}
           {myReservationList.length > 0 && (
             <Text typography="t7" fontWeight="medium" color={colors.grey500}>
-              {myReservationList.length}건
+              {myReservationList.length}건 {/**D9-2: 내 예약목록 헤더에 건수 표시 */}
             </Text>
           )}
         </div>
         <Spacing size={16} />
 
+        {/*D8-1: 내 예약이 없는 경우(myReservationList.length === 0) 메시지 표시 */}
         {myReservationList.length === 0 ? (
           <div
             css={css`
@@ -450,6 +456,7 @@ export function ReservationStatusPage() {
                         type="danger"
                         style="weak"
                         size="small"
+                        //D3: 예약 취소 버튼 클릭 시 확인창을 띄우고, 사용자가 확인을 누르면 handleCancel 함수 호출하여 예약 취소
                         onClick={e => {
                           e.stopPropagation();
                           if (window.confirm('정말 취소하시겠습니까?')) {
